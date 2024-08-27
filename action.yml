@@ -60,8 +60,22 @@ inputs:
     description: "Get the author of the comment via git API from the commit hash of the comment and assign to the issue created"
     default: "0"
 runs:
-  using: "docker"
-  image: "Dockerfile"
+  using: "composite"
+  steps:
+    - name: Set GitHub Path
+      run: echo "$GITHUB_ACTION_PATH" >> $GITHUB_PATH
+      shell: bash
+      env:
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+    - name: Download binary
+      run: ./download_itself.sh "$GITHUB_ACTION_REPOSITORY" app "$GITHUB_TOKEN"
+      env:
+        GITHUB_ACTION_REPOSITORY: ${{ github.action_repository }}
+        GITHUB_TOKEN: ${{ github.token }}
+      shell: bash
+    - name: Run TDG Action
+      run: chmod u+x ./app && ./app
+      shell: bash
 
 branding:
   icon: "check-square"
