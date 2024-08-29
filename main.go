@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,6 +15,10 @@ import (
 	"github.com/google/go-github/v49/github"
 	"gitlab.com/ribtoks/tdg/pkg/tdglib"
 	"golang.org/x/oauth2"
+)
+
+var (
+	GitCommit string
 )
 
 const (
@@ -30,6 +35,7 @@ const (
 	labelBranchPrefix    = "branch: "
 	labelTypePrefix      = "type: "
 	labelAreaPrefix      = "area: "
+	labelLangPrefix      = "lang: "
 )
 
 func sourceRoot(root string, workspace string) string {
@@ -254,6 +260,10 @@ func (s *service) labels(c *tdglib.ToDoComment) []string {
 
 		if len(c.Category) > 0 {
 			labels = append(labels, labelAreaPrefix+c.Category)
+		}
+
+		if extension := filepath.Ext(c.File); len(extension) > 0 {
+			labels = append(labels, labelLangPrefix+strings.ToLower(extension))
 		}
 
 		if c.Estimate > minEstimate {
@@ -505,8 +515,30 @@ func (s *service) closeMissingIssues(issueMap map[string]*github.Issue, comments
 	log.Printf("Closed issues. count=%v", count)
 }
 
+func appendGitHubActionOutput() {
+	githubOutput := os.Getenv("GITHUB_OUTPUT")
+	if githubOutput == "" {
+		fmt.Println("GITHUB_OUTPUT environment variable is not set")
+		return
+	}
+
+	f, err := os.OpenFile(githubOutput, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	_, err = fmt.Fprintln(f, "scannedIssues=1")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing to file: %v\n", err)
+		return
+	}
+}
+
 func main() {
 	log.SetOutput(os.Stdout)
+	log.Printf("Starting. version=%v", GitCommit)
 
 	env := environment()
 	ctx := context.Background()
@@ -579,5 +611,5 @@ func main() {
 		svc.assignNewIssues()
 	}
 
-	fmt.Println(`::set-output name=scannedIssues::1`)
+	appendGitHubActionOutput()
 }
